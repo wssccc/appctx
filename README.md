@@ -346,7 +346,9 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 
 ## Contributing
 
-Issues and Pull Requests are welcome!
+We welcome contributions! Please see our contributing guidelines below.
+
+### Development Setup
 
 1. Fork the project
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -354,10 +356,30 @@ Issues and Pull Requests are welcome!
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Create a Pull Request
 
+### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run tests with coverage
+pytest --cov=appctx
+
+# Run linting
+black --check src/ tests/
+flake8 src/ tests/
+mypy src/
+```
+
+### Release Process
+
+For maintainers, see [RELEASE.md](RELEASE.md) for detailed release instructions.
+
 ## Links
 
 - **Homepage**: [https://github.com/wssccc/appctx](https://github.com/wssccc/appctx)
 - **Repository**: [https://github.com/wssccc/appctx](https://github.com/wssccc/appctx)
+- **PyPI**: [https://pypi.org/project/appctx/](https://pypi.org/project/appctx/)
 - **Issues**: [https://github.com/wssccc/appctx/issues](https://github.com/wssccc/appctx/issues)
 
 ## Changelog
