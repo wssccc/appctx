@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "appctx"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Spring style dependency injection for python"
 authors = [{name = "wssccc", email = "wssccc@qq.com"}]
-license = {text = "MIT"}
+license = "MIT"
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
@@ -36,6 +36,9 @@ Homepage = "https://github.com/wssccc/appctx"
 Repository = "https://github.com/wssccc/appctx"
 "Bug Tracker" = "https://github.com/wssccc/appctx/issues"
 "Documentation" = "https://github.com/wssccc/appctx#readme"
+
+[tool.setuptools.dynamic]
+version = {attr = "appctx.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
