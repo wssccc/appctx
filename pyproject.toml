@@ -7,7 +7,7 @@ name = "appctx"
 dynamic = ["version"]
 description = "Spring style dependency injection for python"
 authors = [{name = "wssccc", email = "wssccc@qq.com"}]
-license = "MIT"
+license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
