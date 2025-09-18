@@ -1,7 +1,7 @@
 import inspect
 from collections import defaultdict
 from functools import singledispatchmethod
-from typing import Any, Callable, Dict, List, Type, TypeVar, Union
+from typing import Any, Callable, Dict, List, Type, TypeVar, Optional
 
 T = TypeVar("T")
 
@@ -9,23 +9,23 @@ T = TypeVar("T")
 class ApplicationContext:
     """Spring-style dependency injection container."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.bean_defs: List[Any] = []
         self.bean_names_map: Dict[str, Any] = {}
         self.bean_types_map: Dict[Type, List[Any]] = defaultdict(list)
 
     @singledispatchmethod
-    def get_bean(self, k):
+    def get_bean(self, k: Any) -> Any:
         """Get a bean by name or type."""
         raise NotImplementedError(f"Cannot get bean for key type: {type(k)}")
 
     @get_bean.register
-    def _(self, k: str):
+    def _(self, k: str) -> Any:
         """Get a bean by name."""
         return self.bean_names_map[k]
 
     @get_bean.register
-    def _(self, k: type):
+    def _(self, k: type) -> Any:
         """Get a bean by type."""
         beans = self.bean_types_map[k]
         if not beans:
@@ -36,7 +36,7 @@ class ApplicationContext:
         """Get all beans of a specific type."""
         return self.bean_types_map[_type]
 
-    def _instantiate(self, bean_def) -> Any:
+    def _instantiate(self, bean_def: Any) -> Optional[Any]:
         """Instantiate a bean definition."""
         is_class = inspect.isclass(bean_def)
         if is_class:
@@ -54,7 +54,7 @@ class ApplicationContext:
             return obj
         return None
 
-    def _to_args(self, spec) -> Union[List[Any], None]:
+    def _to_args(self, spec: inspect.FullArgSpec) -> Optional[List[Any]]:
         """Convert function signature to arguments."""
         args = []
         for a in spec.args:
@@ -78,7 +78,7 @@ class ApplicationContext:
         self.bean_defs.append(target)
         return target
 
-    def add(self, target) -> "ApplicationContext":
+    def add(self, target: Any) -> "ApplicationContext":
         """Add a bean definition."""
         if inspect.ismodule(target):
             return self
