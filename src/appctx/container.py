@@ -1,7 +1,7 @@
 import inspect
 from collections import defaultdict
 from functools import singledispatchmethod
-from typing import Any, Callable, Dict, List, Type, TypeVar, Optional
+from typing import Any, Callable, Dict, List, Type, TypeVar, Optional, overload
 
 T = TypeVar("T")
 
@@ -13,6 +13,12 @@ class ApplicationContext:
         self.bean_defs: List[Any] = []
         self.bean_names_map: Dict[str, Any] = {}
         self.bean_types_map: Dict[Type, List[Any]] = defaultdict(list)
+
+    @overload
+    def get_bean(self, k: str) -> Any: ...
+
+    @overload
+    def get_bean(self, k: Type[T]) -> T: ...
 
     @singledispatchmethod
     def get_bean(self, k: Any) -> Any:
