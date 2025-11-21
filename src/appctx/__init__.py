@@ -5,7 +5,7 @@ This package provides a lightweight dependency injection container
 inspired by the Spring Framework for Java.
 """
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 __author__ = "wssccc"
 __email__ = "wssccc@qq.com"
 

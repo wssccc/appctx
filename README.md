@@ -10,7 +10,7 @@ Spring-style dependency injection for Python
 
 AppCtx is a lightweight dependency injection container inspired by the Spring Framework, providing a clean and elegant dependency management solution for Python applications. It makes it easy to manage dependencies and create maintainable, testable code.
 
-**Version**: 0.1.1  
+**Version**: 0.1.2
 **Python Requirements**: 3.8+  
 **License**: MIT
 
