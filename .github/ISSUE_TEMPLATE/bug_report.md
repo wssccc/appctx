@@ -30,7 +30,7 @@ If applicable, add a minimal code example to help explain your problem.
 **Environment (please complete the following information):**
  - OS: [e.g. Windows, macOS, Linux]
  - Python version: [e.g. 3.8, 3.9, 3.10, 3.11]
- - appctx version: [e.g. 0.1.0]
+ - appctx version: [e.g. 0.1.1]
 
 **Additional context**
 Add any other context about the problem here.
