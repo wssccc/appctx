@@ -1,7 +1,6 @@
 import inspect
 from collections import defaultdict
-from functools import singledispatchmethod
-from typing import Any, Callable, Dict, List, Type, TypeVar, Optional, overload
+from typing import Any, Dict, List, Type, TypeVar, Optional, overload, Union
 
 T = TypeVar("T")
 
@@ -20,23 +19,17 @@ class ApplicationContext:
     @overload
     def get_bean(self, k: Type[T]) -> T: ...
 
-    @singledispatchmethod
-    def get_bean(self, k: Any) -> Any:
+    def get_bean(self, k: Union[str, Type[T]]) -> Union[Any, T]:
         """Get a bean by name or type."""
-        raise NotImplementedError(f"Cannot get bean for key type: {type(k)}")
-
-    @get_bean.register
-    def _(self, k: str) -> Any:
-        """Get a bean by name."""
-        return self.bean_names_map[k]
-
-    @get_bean.register
-    def _(self, k: type) -> Any:
-        """Get a bean by type."""
-        beans = self.bean_types_map[k]
-        if not beans:
-            raise KeyError(f"No bean of type {k} found")
-        return beans[0]
+        if isinstance(k, str):
+            return self.bean_names_map[k]
+        elif isinstance(k, type):
+            beans = self.bean_types_map[k]
+            if not beans:
+                raise KeyError(f"No bean of type {k} found")
+            return beans[0]
+        else:
+            raise NotImplementedError(f"Cannot get bean for key type: {type(k)}")
 
     def get_beans(self, _type: Type[T]) -> List[T]:
         """Get all beans of a specific type."""
@@ -137,7 +130,7 @@ class ApplicationContext:
 
         return args, kwargs
 
-    def bean(self, target: Callable) -> Callable:
+    def bean(self, target: T) -> T:
         """Decorator to register a bean."""
         self.bean_defs.append(target)
         return target
