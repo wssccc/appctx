@@ -11,6 +11,7 @@ __email__ = "wssccc@qq.com"
 
 # Import main API for convenience
 from .container import ApplicationContext
+from .decorators import post_construct
 
 # Create default application context
 _default_context = ApplicationContext()
@@ -29,4 +30,5 @@ __all__ = [
     "get_bean",
     "get_beans",
     "refresh",
+    "post_construct",
 ]

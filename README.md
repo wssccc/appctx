@@ -235,12 +235,40 @@ services = get_beans(MyService)
 
 ## Dependency Resolution
 
-AppCtx uses the following rules to resolve dependencies:
+AppCtx uses a sophisticated dependency resolution strategy that handles different parameter types:
 
-1. **Type Annotation Priority** - If a parameter has type annotation, find bean by type
-2. **Name Matching** - If no type annotation, find bean by parameter name
-3. **Auto-wiring** - Container automatically resolves and injects dependencies
-4. **Circular Dependency Detection** - Detects and reports circular dependency issues
+1. **Positional Arguments** - Resolved by type annotations only. Must have type annotations to be resolved.
+2. **Keyword-only Arguments** - Resolved by parameter name first, then use default values if available.
+3. **Variable Keyword Arguments (**kwargs)** - Injects all remaining beans that haven't been used as other parameters.
+4. **Auto-wiring** - Container automatically resolves and injects dependencies based on the above rules.
+5. **Circular Dependency Detection** - Detects and reports circular dependency issues.
+
+### Parameter Resolution Examples
+
+```python
+@bean
+def config_service():
+    return "config_value"
+
+@bean
+def database_service():
+    return "database_url"
+
+# Positional args - resolved by type annotations
+@bean
+def service_with_positional(config_service: str):
+    return f"Service: {config_service}"
+
+# Keyword-only args - resolved by name
+@bean
+def service_with_keyword_only(*, config_service, timeout=30):
+    return f"Service: {config_service}, timeout={timeout}"
+
+# **kwargs - gets all remaining beans
+@bean
+def flexible_service(**kwargs):
+    return f"Flexible: {kwargs}"
+```
 
 ## Error Handling
 
