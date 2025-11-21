@@ -167,6 +167,7 @@ def test_kwargs_support():
 
 def test_kwargs_with_varkw():
     """Test bean instantiation with **kwargs."""
+
     class ConfigStr:
         def __init__(self, value):
             self.value = value
@@ -213,7 +214,9 @@ def test_class_with_kwargs():
 
     @ctx.bean
     class ConfigurableService:
-        def __init__(self, config_value: str, *, max_connections=100, enable_cache=True):
+        def __init__(
+            self, config_value: str, *, max_connections=100, enable_cache=True
+        ):
             self.config = config_value
             self.max_connections = max_connections
             self.enable_cache = enable_cache
@@ -224,7 +227,10 @@ def test_class_with_kwargs():
     ctx.refresh()
 
     service = ctx.get_bean("ConfigurableService")
-    assert str(service) == "ConfigurableService(config=test_config, max_conn=100, cache=True)"
+    assert (
+        str(service)
+        == "ConfigurableService(config=test_config, max_conn=100, cache=True)"
+    )
     assert service.config == "test_config"
     assert service.max_connections == 100
     assert service.enable_cache is True
@@ -232,6 +238,7 @@ def test_class_with_kwargs():
 
 def test_mixed_args_and_kwargs():
     """Test bean instantiation with both positional and keyword arguments."""
+
     class ConfigStr:
         def __init__(self, value):
             self.value = value
@@ -257,8 +264,12 @@ def test_mixed_args_and_kwargs():
         return UrlStr("localhost:5432")
 
     @ctx.bean
-    def full_service(config_value: ConfigStr, database_url: UrlStr, *, debug=False, timeout=30):
-        return f"Full: {config_value}, db={database_url}, debug={debug}, timeout={timeout}"
+    def full_service(
+        config_value: ConfigStr, database_url: UrlStr, *, debug=False, timeout=30
+    ):
+        return (
+            f"Full: {config_value}, db={database_url}, debug={debug}, timeout={timeout}"
+        )
 
     ctx.refresh()
 

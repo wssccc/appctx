@@ -61,6 +61,7 @@ def test_multiple_post_construct_methods():
 
 def test_post_construct_with_dependencies():
     """Test post_construct with dependency injection."""
+
     class ConfigService:
         def __init__(self):
             self.config = {"key": "value"}
