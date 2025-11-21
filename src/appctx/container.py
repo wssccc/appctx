@@ -58,8 +58,26 @@ class ApplicationContext:
             # Register bean by name for both function and class beans
             self.bean_names_map[bean_def.__name__] = obj
             self.bean_types_map[type(obj)].append(obj)
+
+            # Call post_construct methods if they exist
+            self._call_post_construct(obj)
+
             return obj
         return None
+
+    def _call_post_construct(self, obj: Any) -> None:
+        """Call post_construct methods on the object if they exist."""
+        # Get all attributes of the object
+        for name in dir(obj):
+            # Skip private attributes
+            if name.startswith('_'):
+                continue
+
+            attr = getattr(obj, name)
+            # Check if it's callable and has the _is_post_construct attribute
+            if callable(attr) and hasattr(attr, '_is_post_construct'):
+                # Call the method
+                attr()
 
     def _resolve_dependencies(
         self, spec: inspect.FullArgSpec
