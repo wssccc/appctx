@@ -39,9 +39,9 @@ def test_post_construct_decorator():
 
     ctx.refresh()
 
-    service = ctx.get_bean("service")
-    assert service.initialized is True
-    assert service.name == "initialized_test"
+    service_instance = ctx.get_bean("service")
+    assert service_instance.initialized is True
+    assert service_instance.name == "initialized_test"
 
 
 def test_multiple_post_construct_methods():
@@ -54,9 +54,9 @@ def test_multiple_post_construct_methods():
 
     ctx.refresh()
 
-    service = ctx.get_bean("service")
-    assert service.init1_called is True
-    assert service.init2_called is True
+    service_instance = ctx.get_bean("service")
+    assert service_instance.init1_called is True
+    assert service_instance.init2_called is True
 
 
 def test_post_construct_with_dependencies():

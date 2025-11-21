@@ -222,7 +222,10 @@ def test_class_with_kwargs():
             self.enable_cache = enable_cache
 
         def __str__(self):
-            return f"ConfigurableService(config={self.config}, max_conn={self.max_connections}, cache={self.enable_cache})"
+            return (
+                f"ConfigurableService(config={self.config}, "
+                f"max_conn={self.max_connections}, cache={self.enable_cache})"
+            )
 
     ctx.refresh()
 
