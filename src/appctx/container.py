@@ -70,12 +70,12 @@ class ApplicationContext:
         # Get all attributes of the object
         for name in dir(obj):
             # Skip private attributes
-            if name.startswith('_'):
+            if name.startswith("_"):
                 continue
 
             attr = getattr(obj, name)
             # Check if it's callable and has the _is_post_construct attribute
-            if callable(attr) and hasattr(attr, '_is_post_construct'):
+            if callable(attr) and hasattr(attr, "_is_post_construct"):
                 # Call the method
                 attr()
 
