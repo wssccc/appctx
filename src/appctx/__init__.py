@@ -5,7 +5,7 @@ This package provides a lightweight dependency injection container
 inspired by the Spring Framework for Java.
 """
 
-__version__ = "0.1.2"
+__version__ = "0.2.0"
 __author__ = "wssccc"
 __email__ = "wssccc@qq.com"
 
@@ -18,6 +18,7 @@ _default_context = ApplicationContext()
 
 # Export main API functions
 bean = _default_context.bean
+component = _default_context.bean
 add = _default_context.add
 get_bean = _default_context.get_bean
 get_beans = _default_context.get_beans
@@ -26,6 +27,7 @@ refresh = _default_context.refresh
 __all__ = [
     "ApplicationContext",
     "bean",
+    "component",
     "add",
     "get_bean",
     "get_beans",
