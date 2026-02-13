@@ -48,12 +48,10 @@ class ApplicationContext:
         if deps is not None:
             args, kwargs = deps
             obj = bean_def(*args, **kwargs)
+
             # Register bean by name for both function and class beans
             self.bean_names_map[bean_def.__name__] = obj
             self.bean_types_map[type(obj)].append(obj)
-
-            # Call post_construct methods if they exist
-            self._call_post_construct(obj)
 
             return obj
         return None
@@ -71,6 +69,23 @@ class ApplicationContext:
             if callable(attr) and hasattr(attr, "_is_post_construct"):
                 # Call the method
                 attr()
+
+    def _call_post_construct_on_all_beans(self) -> None:
+        """Call post_construct on all registered beans after all beans are created."""
+        for bean_name, obj in list(self.bean_names_map.items()):
+            try:
+                self._call_post_construct(obj)
+            except Exception:
+                # Remove the bean from container if post_construct fails
+                obj_type = type(obj)
+                self.bean_names_map.pop(bean_name, None)
+                if obj_type in self.bean_types_map:
+                    self.bean_types_map[obj_type] = [
+                        b for b in self.bean_types_map[obj_type] if b is not obj
+                    ]
+                    if not self.bean_types_map[obj_type]:
+                        del self.bean_types_map[obj_type]
+                raise
 
     def _resolve_dependencies(
         self, spec: inspect.FullArgSpec
@@ -158,3 +173,7 @@ class ApplicationContext:
         if self.bean_defs:
             bean_names = ", ".join(f"{d.__name__}: {d}" for d in self.bean_defs)
             raise RuntimeError(f"Could not instantiate bean defs {bean_names}")
+
+        # Call post_construct methods after all beans are instantiated
+        # Following Spring's PostConstruct behavior
+        self._call_post_construct_on_all_beans()

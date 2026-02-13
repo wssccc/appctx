@@ -1,5 +1,7 @@
 """Tests for the post_construct decorator."""
 
+import pytest
+
 from appctx import ApplicationContext, bean, post_construct
 
 
@@ -113,3 +115,96 @@ def test_post_construct_with_global_decorator():
 
     service = get_bean(GlobalService)
     assert service.initialized is True
+
+
+def test_post_construct_failure_prevents_registration():
+    """Test that a failed post_construct prevents bean registration."""
+    from appctx import ApplicationContext
+
+    class FailingService:
+        def __init__(self):
+            self.initialized = False
+
+        @post_construct
+        def init(self):
+            self.initialized = True
+            raise ValueError("Initialization failed!")
+
+    ctx = ApplicationContext()
+
+    @ctx.bean
+    def failing_service():
+        return FailingService()
+
+    # Refresh should fail
+    with pytest.raises(ValueError, match="Initialization failed!"):
+        ctx.refresh()
+
+    # Bean should not be registered
+    with pytest.raises(KeyError):
+        ctx.get_bean("failing_service")
+
+
+def test_post_construct_failure_with_dependencies():
+    """Test that post_construct failure doesn't affect other beans."""
+    class HealthyService:
+        def __init__(self):
+            self.ready = True
+
+        @post_construct
+        def init(self):
+            pass
+
+    class FailingService:
+        def __init__(self):
+            self.initialized = False
+
+        @post_construct
+        def init(self):
+            raise RuntimeError("Failed to init")
+
+    ctx = ApplicationContext()
+
+    @ctx.bean
+    def healthy_service():
+        return HealthyService()
+
+    @ctx.bean
+    def failing_service():
+        return FailingService()
+
+    # Refresh should fail due to failing_service
+    with pytest.raises(RuntimeError, match="Failed to init"):
+        ctx.refresh()
+
+    # But healthy_service should be registered
+    ctx.get_bean("healthy_service")
+
+
+def test_post_construct_multiple_methods_one_fails():
+    """Test that if one post_construct fails, bean is not registered."""
+    class MultiInitService:
+        def __init__(self):
+            self.init1_called = False
+
+        @post_construct
+        def init1(self):
+            self.init1_called = True
+
+        @post_construct
+        def init2(self):
+            raise ValueError("Second init failed!")
+
+    ctx = ApplicationContext()
+
+    @ctx.bean
+    def multi_init_service():
+        return MultiInitService()
+
+    # Refresh should fail
+    with pytest.raises(ValueError, match="Second init failed!"):
+        ctx.refresh()
+
+    # Bean should not be registered even though first init succeeded
+    with pytest.raises(KeyError):
+        ctx.get_bean("multi_init_service")

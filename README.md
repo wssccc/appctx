@@ -10,7 +10,6 @@ Spring-style dependency injection for Python
 
 AppCtx is a lightweight dependency injection container inspired by the Spring Framework, providing a clean and elegant dependency management solution for Python applications. It makes it easy to manage dependencies and create maintainable, testable code.
 
-**Version**: 0.1.2
 **Python Requirements**: 3.8+  
 **License**: MIT
 
@@ -184,6 +183,42 @@ refresh()
 db = get_bean("database_service")
 ```
 
+#### Post-Construct Initialization
+
+Use the `@post_construct` decorator to execute initialization logic after bean construction:
+
+```python
+class EmailService:
+    def __init__(self, server: str):
+        self.server = server
+        self.connected = False
+
+    @post_construct
+    def connect(self):
+        # Automatically called after construction
+        self.connection = f"Connected to {self.server}"
+        self.connected = True
+
+    @post_construct
+    def verify_connection(self):
+        # Multiple post_construct methods are supported
+        assert self.connected
+
+@bean
+def config_service():
+    return ConfigService("smtp.example.com")
+
+@bean
+def email_service(config: ConfigService):
+    # Config is injected before post_construct runs
+    return EmailService(config.smtp_server)
+
+refresh()
+
+email = get_bean(EmailService)
+print(email.connection)  # "Connected to smtp.example.com"
+```
+
 ## API Reference
 
 ### Core Decorators
@@ -202,6 +237,34 @@ class MyComponent:
     def __init__(self, dependency: SomeDependency):
         self.dependency = dependency
 ```
+
+#### `@post_construct`
+
+Mark a method to be called automatically after the bean has been constructed and all dependencies have been injected. The method should only accept `self` as a parameter and should not return any value. If the method raises an exception, the bean will not be registered in the container.
+
+```python
+class DatabaseService:
+    def __init__(self):
+        self.connection = None
+
+    @post_construct
+    def init(self):
+        # Initialize the database connection
+        self.connection = create_connection()
+        self.setup_tables()
+
+@bean
+def database_service():
+    return DatabaseService()
+```
+
+**Important notes:**
+- Only non-private methods (not starting with `_`) are considered
+- Multiple methods can be annotated with `@post_construct` in the same class
+- If a `@post_construct` method raises an exception, the bean is removed from the container
+- `@post_construct` methods are called **after all beans are created**, similar to Spring's `@PostConstruct`
+- All beans exist in the container during `@post_construct` execution
+- Order of `@post_construct` calls depends on bean registration order, not dependency relationships
 
 ### Container Operations
 
