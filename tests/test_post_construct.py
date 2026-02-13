@@ -147,6 +147,7 @@ def test_post_construct_failure_prevents_registration():
 
 def test_post_construct_failure_with_dependencies():
     """Test that post_construct failure doesn't affect other beans."""
+
     class HealthyService:
         def __init__(self):
             self.ready = True
@@ -183,6 +184,7 @@ def test_post_construct_failure_with_dependencies():
 
 def test_post_construct_multiple_methods_one_fails():
     """Test that if one post_construct fails, bean is not registered."""
+
     class MultiInitService:
         def __init__(self):
             self.init1_called = False
