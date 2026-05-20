@@ -8,21 +8,18 @@ Spring-style dependency injection for Python
 
 ## Overview
 
-AppCtx is a lightweight dependency injection container inspired by the Spring Framework, providing a clean and elegant dependency management solution for Python applications. It makes it easy to manage dependencies and create maintainable, testable code.
+AppCtx is a lightweight dependency injection (DI) container for Python, inspired by the Spring Framework. It uses decorator-based bean registration and auto-wiring via type annotations to manage dependencies in a clean, testable way.
 
-**Python Requirements**: 3.8+  
-**License**: MIT
+**Python Requirements**: 3.8+ | **License**: MIT
 
 ### Features
 
-- 🚀 **Easy to Use** - Register and inject dependencies with simple decorators
-- 🔄 **Auto-wiring** - Automatic dependency resolution based on type annotations
-- 🏗️ **Flexible Configuration** - Support for both function and class bean definitions
-- 📦 **Lightweight** - Minimal dependencies, focused on core functionality
-- 🐍 **Pythonic** - API design that follows Python conventions
-- 🔧 **Python 3.8+** - Compatible with Python 3.8, 3.9, 3.10, and 3.11
-- 🎯 **Decorator-based bean registration** - Simple `@bean` decorator for registration
-- 🔍 **Circular dependency detection** - Detects and reports circular dependencies
+- 🚀 **Decorator-based registration** — `@bean` / `@component` to register, `@post_construct` for lifecycle hooks
+- 🔄 **Auto-wiring** — Dependencies resolved from type annotations automatically
+- 🔍 **Circular dependency detection** — Caught at startup, not runtime
+- 📦 **Lightweight** — Zero mandatory dependencies beyond stdlib
+- 🐍 **Pythonic API** — Feels natural in Python, not a Java port
+- 🏗️ **Multiple contexts** — Isolated containers for different scopes
 
 ## Installation
 
@@ -30,73 +27,55 @@ AppCtx is a lightweight dependency injection container inspired by the Spring Fr
 pip install appctx
 ```
 
-### Development Installation
-
-For development, clone the repository and install with development dependencies:
-
-```bash
-git clone https://github.com/wssccc/appctx.git
-cd appctx
-pip install -e .[dev]
-```
-
-This will install the following development tools:
-- `pytest>=7.0` - Testing framework
-- `pytest-cov>=4.0` - Coverage reporting
-- `black>=22.0` - Code formatting
-- `flake8>=5.0` - Linting
-- `mypy>=1.0` - Type checking
-- `isort>=5.0` - Import sorting
-
-## Basic Concepts
-
-AppCtx provides a simple way to manage dependencies in your Python applications:
-
-- **Beans**: Objects managed by the container
-- **Container**: The `ApplicationContext` that manages beans
-- **Dependency Injection**: Automatic wiring of dependencies based on type annotations
-
 ## Quick Start
 
-### Basic Usage
+### 1. Define and register beans
+
+Use `@bean` on functions that create your objects. Dependencies are declared via type annotations:
 
 ```python
 from appctx import bean, get_bean, refresh
 
-# Define service classes
 class DatabaseService:
     def __init__(self, connection_string: str = "sqlite:///default.db"):
         self.connection_string = connection_string
-    
+
     def connect(self):
         return f"Connected to {self.connection_string}"
 
 class UserService:
     def __init__(self, db: DatabaseService):
         self.db = db
-    
-    def get_user(self, user_id: int):
-        connection = self.db.connect()
-        return f"User {user_id} from {connection}"
 
-# Register beans using decorators
+    def get_user(self, user_id: int):
+        return f"User {user_id} from {self.db.connect()}"
+
+# Register beans
 @bean
 def database_service():
     return DatabaseService("postgresql://localhost/myapp")
 
 @bean
-def user_service(db: DatabaseService):  # Auto-inject DatabaseService
+def user_service(db: DatabaseService):  # Auto-injected by type
     return UserService(db)
+```
 
-# Initialize the container
+### 2. Initialize and use
+
+```python
+# Initialize the container — resolves all dependencies
 refresh()
 
-# Get and use beans
+# Retrieve the root application object (the only place you should call get_bean)
 user_svc = get_bean(UserService)
 print(user_svc.get_user(123))
 ```
 
-### Class Decorator Usage
+> **Note:** `get_bean()` is only needed at the **entry point** to bootstrap your application. All other dependencies are injected automatically via constructor or function parameters — just like Spring.
+
+### Class-style beans
+
+Decorate classes directly — the container instantiates them with resolved dependencies:
 
 ```python
 from appctx import bean, get_bean, refresh
@@ -119,25 +98,80 @@ class NotificationService:
 
 refresh()
 
+# Entry point — the only place you should call get_bean
 notification_svc = get_bean(NotificationService)
 print(notification_svc.notify("user@example.com", "Hello World!"))
 ```
 
+### Post-construct lifecycle
+
+Use `@post_construct` to run initialization logic after all beans are created:
+
+```python
+from appctx import post_construct
+
+class DatabaseService:
+    def __init__(self):
+        self.connection = None
+
+    @post_construct
+    def init(self):
+        self.connection = create_connection()  # Called automatically after construction
+
+@bean
+def database_service():
+    return DatabaseService()
+```
+
+> **Note:** `@post_construct` methods run after **all** beans are created, so you can safely reference other beans during initialization.
+
 ### How It Works
 
-1. **Bean Registration**: Use the `@bean` decorator to register functions that create beans
-2. **Type Annotations**: Use type annotations to declare dependencies
-3. **Container Initialization**: Call `refresh()` to initialize the container and resolve dependencies
-4. **Bean Retrieval**: Use `get_bean()` to retrieve beans by type or name
+1. **Bean Registration**: Use the `@bean` decorator to register functions/classes that create beans
+2. **Auto-wiring**: Dependencies are resolved from type annotations and injected automatically — no manual `get_bean()` calls needed
+3. **Container Initialization**: Call `refresh()` to instantiate all beans in dependency order
+4. **Entry Point**: Use `get_bean()` **once** at the application root to retrieve the assembled object graph
 
-### Advanced Usage
+## Core Concepts
 
-#### Custom Application Context
+| Concept | Description |
+|---|---|
+| **Bean** | An object managed by the container |
+| **ApplicationContext** | The DI container that holds and wires beans |
+| **`@bean`** | Decorator that registers a function/class as a bean factory (alias: `@component`) |
+| **`refresh()`** | Initializes the container, instantiates all beans in dependency order |
+| **`get_bean(T)`** | Retrieve a bean by type or name (low-level; prefer auto-wiring) |
+| **`get_beans(T)`** | Retrieve all beans of a given type (low-level; prefer auto-wiring) |
+
+### Dependency Resolution Rules
+
+1. **Positional arguments** → resolved by type annotation
+2. **Keyword-only arguments** (`*, name`) → resolved by parameter name, falls back to default
+3. **`**kwargs`** → receives all remaining beans not consumed by other parameters
+
+## Global Default Context
+
+AppCtx provides a **global default context** for convenience, similar to Spring's application context. The top-level functions (`bean`, `refresh`, `get_bean`, `add`) operate on this shared instance:
+
+```python
+from appctx import bean, refresh, get_bean
+
+# These all use the same global ApplicationContext behind the scenes
+@bean
+def my_service():
+    return MyService()
+
+refresh()
+app = get_bean(MyService)
+```
+
+### Custom Context (Isolation)
+
+For libraries or tests that need isolation, create your own `ApplicationContext`:
 
 ```python
 from appctx import ApplicationContext
 
-# Create custom context
 ctx = ApplicationContext()
 
 @ctx.bean
@@ -145,340 +179,67 @@ def my_service():
     return MyService()
 
 ctx.refresh()
-service = ctx.get_bean(MyService)
+app = ctx.get_bean(MyService)
 ```
 
-#### Multiple Beans of Same Type
+> **Note:** `@bean` on the global context registers beans immediately when the module is imported. For custom contexts, use `@ctx.bean` to register against that specific instance.
+
+## Organizing Beans Across Modules
+
+AppCtx does **not** perform automatic package scanning. Instead, beans are registered at import time — when Python loads a module, any `@bean` decorators execute and register with the target context.
+
+To wire beans across multiple modules, simply **import** them before calling `refresh()`:
 
 ```python
-@bean
-def primary_db():
-    return DatabaseService("primary://db")
+# main.py
+from appctx import bean, refresh, get_bean
 
-@bean
-def secondary_db():
-    return DatabaseService("secondary://db")
+# Import modules so their @bean decorators fire
+import myapp.services.user   # registers UserService
+import myapp.services.email   # registers EmailService
+import myapp.config           # registers ConfigService
 
 refresh()
-
-# Get all database services
-dbs = get_beans(DatabaseService)
-print(f"Found {len(dbs)} database services")
-
-# Get all beans of a specific type
-databases = get_beans(DatabaseService)
-print(len(databases))  # 2
+app = get_bean(UserService)
 ```
 
-#### Named Bean Retrieval
+You can also use `add()` to register a plain function or class (without the `@bean` decorator):
 
 ```python
-@bean
-def database_service():
-    return DatabaseService("app.db")
+from appctx import add
 
-refresh()
+def some_service():
+    return SomeService()
 
-# Get bean by name (function name)
-db = get_bean("database_service")
+add(some_service)  # Equivalent to @bean on some_service
 ```
 
-#### Post-Construct Initialization
-
-Use the `@post_construct` decorator to execute initialization logic after bean construction:
-
-```python
-class EmailService:
-    def __init__(self, server: str):
-        self.server = server
-        self.connected = False
-
-    @post_construct
-    def connect(self):
-        # Automatically called after construction
-        self.connection = f"Connected to {self.server}"
-        self.connected = True
-
-    @post_construct
-    def verify_connection(self):
-        # Multiple post_construct methods are supported
-        assert self.connected
-
-@bean
-def config_service():
-    return ConfigService("smtp.example.com")
-
-@bean
-def email_service(config: ConfigService):
-    # Config is injected before post_construct runs
-    return EmailService(config.smtp_server)
-
-refresh()
-
-email = get_bean(EmailService)
-print(email.connection)  # "Connected to smtp.example.com"
-```
-
-## API Reference
-
-### Core Decorators
-
-#### `@bean`
-
-Register a function or class as a bean.
-
-```python
-@bean
-def my_service():
-    return MyService()
-
-@bean
-class MyComponent:
-    def __init__(self, dependency: SomeDependency):
-        self.dependency = dependency
-```
-
-#### `@post_construct`
-
-Mark a method to be called automatically after the bean has been constructed and all dependencies have been injected. The method should only accept `self` as a parameter and should not return any value. If the method raises an exception, the bean will not be registered in the container.
-
-```python
-class DatabaseService:
-    def __init__(self):
-        self.connection = None
-
-    @post_construct
-    def init(self):
-        # Initialize the database connection
-        self.connection = create_connection()
-        self.setup_tables()
-
-@bean
-def database_service():
-    return DatabaseService()
-```
-
-**Important notes:**
-- Only non-private methods (not starting with `_`) are considered
-- Multiple methods can be annotated with `@post_construct` in the same class
-- If a `@post_construct` method raises an exception, the bean is removed from the container
-- `@post_construct` methods are called **after all beans are created**, similar to Spring's `@PostConstruct`
-- All beans exist in the container during `@post_construct` execution
-- Order of `@post_construct` calls depends on bean registration order, not dependency relationships
-
-### Container Operations
-
-#### `refresh()`
-
-Initialize the container and instantiate all beans. Must be called before getting beans.
-
-```python
-refresh()
-```
-
-#### `get_bean(key)`
-
-Get a bean by type or name.
-
-```python
-# Get by type
-service = get_bean(MyService)
-
-# Get by name
-service = get_bean("my_service")
-```
-
-#### `get_beans(type)`
-
-Get all beans of a specific type.
-
-```python
-services = get_beans(MyService)
-```
-
-## Dependency Resolution
-
-AppCtx uses a sophisticated dependency resolution strategy that handles different parameter types:
-
-1. **Positional Arguments** - Resolved by type annotations only. Must have type annotations to be resolved.
-2. **Keyword-only Arguments** - Resolved by parameter name first, then use default values if available.
-3. **Variable Keyword Arguments (**kwargs)** - Injects all remaining beans that haven't been used as other parameters.
-4. **Auto-wiring** - Container automatically resolves and injects dependencies based on the above rules.
-5. **Circular Dependency Detection** - Detects and reports circular dependency issues.
-
-### Parameter Resolution Examples
-
-```python
-@bean
-def config_service():
-    return "config_value"
-
-@bean
-def database_service():
-    return "database_url"
-
-# Positional args - resolved by type annotations
-@bean
-def service_with_positional(config_service: str):
-    return f"Service: {config_service}"
-
-# Keyword-only args - resolved by name
-@bean
-def service_with_keyword_only(*, config_service, timeout=30):
-    return f"Service: {config_service}, timeout={timeout}"
-
-# **kwargs - gets all remaining beans
-@bean
-def flexible_service(**kwargs):
-    return f"Flexible: {kwargs}"
-```
-
-## Error Handling
-
-### Common Errors
-
-```python
-# Bean not found
-try:
-    service = get_bean(UnknownService)
-except KeyError as e:
-    print(f"Bean not found: {e}")
-
-# Multiple beans of same type conflict
-try:
-    refresh()
-except RuntimeError as e:
-    print(f"Bean instantiation failed: {e}")
-
-# Circular dependency
-try:
-    refresh()
-except RuntimeError as e:
-    print(f"Circular dependency detected: {e}")
-```
+> **Note:** For modules, simply importing them is sufficient — the `@bean` decorators fire at import time. `add(module)` is available as a semantic marker but the import alone triggers registration.
 
 ## Best Practices
 
-1. **Use Type Annotations** - Specify dependency types clearly for better code readability
-2. **Single Responsibility** - Each bean should have a clear responsibility
-3. **Interface Abstraction** - Use abstract base classes to define service interfaces
-4. **Configuration Separation** - Centralize bean configuration management
-5. **Test-Friendly** - Design beans that are easy to test
+1. **Rely on auto-wiring, avoid `get_bean`** — Like Spring, let the container inject dependencies via function/constructor parameters. Reserve `get_bean()` only for bootstrapping the root application object.
+2. **Use type annotations** — They are the primary mechanism for dependency resolution. Always annotate positional parameters.
+3. **Single responsibility per bean** — Each bean should have one clear purpose.
+4. **Prefer constructor injection** — Dependencies go in `__init__` parameters, not hidden inside methods.
+5. **Keep beans stateless when possible** — Makes testing and reasoning easier.
+6. **Use `@post_construct` for initialization** — Not `__init__` side-effects. Post-construct runs after all beans exist, allowing cross-bean setup.
+7. **Separate configuration from logic** — Use dedicated config beans instead of hardcoding values.
+8. **Design for testability** — Beans that accept dependencies via constructor are trivially mockable in tests.
 
-## Development
+## Documentation
 
-### Requirements
-
-- Python 3.8 or higher
-- pip
-
-### Running Tests
-
-```bash
-pytest tests/
-```
-
-### Running Tests with Coverage
-
-```bash
-pytest --cov=src/appctx tests/
-```
-
-### Code Formatting
-
-Format code with Black (line length: 88):
-
-```bash
-black src/ tests/
-```
-
-### Import Sorting
-
-Sort imports with isort (Black profile):
-
-```bash
-isort src/ tests/
-```
-
-### Linting
-
-Check code quality with flake8:
-
-```bash
-flake8 src/ tests/
-```
-
-### Type Checking
-
-Run type checking with mypy:
-
-```bash
-mypy src/
-```
-
-### Run All Quality Checks
-
-```bash
-# Format code
-black src/ tests/
-isort src/ tests/
-
-# Run linting and type checking
-flake8 src/ tests/
-mypy src/
-
-# Run tests with coverage
-pytest --cov=src/appctx tests/
-```
+- **[API Reference](docs/api-reference.md)** — Full API: decorators, container ops, dependency resolution, error handling
+- **[Development Guide](docs/development.md)** — Setup, testing, code quality, contributing
+- **[Release Guide](RELEASE.md)** — Release process for maintainers
+- **[Changelog](CHANGELOG.md)** — Version history
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](https://github.com/wssccc/appctx/blob/main/LICENSE) file for details.
-
-## Contributing
-
-We welcome contributions! Please see our contributing guidelines below.
-
-### Development Setup
-
-1. Fork the project
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Create a Pull Request
-
-### Running Tests
-
-```bash
-# Run all tests
-pytest
-
-# Run tests with coverage
-pytest --cov=appctx
-
-# Run linting
-black --check src/ tests/
-flake8 src/ tests/
-mypy src/
-```
-
-### Release Process
-
-For maintainers, see [RELEASE.md](RELEASE.md) for detailed release instructions.
+MIT — see [LICENSE](https://github.com/wssccc/appctx/blob/main/LICENSE).
 
 ## Links
 
-- **Homepage**: [https://github.com/wssccc/appctx](https://github.com/wssccc/appctx)
-- **Repository**: [https://github.com/wssccc/appctx](https://github.com/wssccc/appctx)
-- **PyPI**: [https://pypi.org/project/appctx/](https://pypi.org/project/appctx/)
-- **Issues**: [https://github.com/wssccc/appctx/issues](https://github.com/wssccc/appctx/issues)
-
-## Changelog
-
-### v0.1.0
-
-- Initial release
-- Basic dependency injection functionality
-- Decorator API
-- Auto-wiring support
-- Python 3.8+ support
+- **Repository**: [github.com/wssccc/appctx](https://github.com/wssccc/appctx)
+- **PyPI**: [pypi.org/project/appctx](https://pypi.org/project/appctx/)
+- **Issues**: [github.com/wssccc/appctx/issues](https://github.com/wssccc/appctx/issues)
