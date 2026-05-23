@@ -309,6 +309,57 @@ def test_kwargs_dependency_resolution():
     assert service2 == "By kwargs name: string_value"
 
 
+def test_falsy_bean_values():
+    """Test that beans returning falsy values are correctly instantiated."""
+    ctx = ApplicationContext()
+
+    @ctx.bean
+    def zero_bean():
+        return 0
+
+    @ctx.bean
+    def false_bean():
+        return False
+
+    @ctx.bean
+    def empty_str_bean():
+        return ""
+
+    @ctx.bean
+    def empty_list_bean():
+        return []
+
+    @ctx.bean
+    def none_bean():
+        return None
+
+    ctx.refresh()
+
+    assert ctx.get_bean("zero_bean") == 0
+    assert ctx.get_bean("false_bean") is False
+    assert ctx.get_bean("empty_str_bean") == ""
+    assert ctx.get_bean("empty_list_bean") == []
+    assert ctx.get_bean("none_bean") is None
+
+
+def test_falsy_bean_with_dependency():
+    """Test that a bean returning a falsy value can still be used as dependency."""
+    ctx = ApplicationContext()
+
+    @ctx.bean
+    def config():
+        return 0
+
+    @ctx.bean
+    def service(config: int):
+        return f"value={config}"
+
+    ctx.refresh()
+
+    assert ctx.get_bean("config") == 0
+    assert ctx.get_bean("service") == "value=0"
+
+
 def test_positional_args_type_resolution():
     """Test that positional arguments are resolved by type annotations."""
     ctx = ApplicationContext()
