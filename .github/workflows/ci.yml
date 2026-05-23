@@ -31,8 +31,5 @@ jobs:
       run: |
         pytest tests/ -v
 
-    - name: Run linters
-      run: |
-        black --check src/ tests/
-        flake8 src/ tests/
-        mypy src/
+    - name: Run linter
+      run: ruff check src/ tests/

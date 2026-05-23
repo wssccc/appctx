@@ -1,6 +1,6 @@
 import inspect
 from collections import defaultdict
-from typing import Any, Dict, List, Type, TypeVar, Optional, overload, Union
+from typing import Any, Dict, List, Optional, Type, TypeVar, Union, overload
 
 T = TypeVar("T")
 
@@ -36,7 +36,10 @@ class ApplicationContext:
         return self.bean_types_map[_type]
 
     def _instantiate(self, bean_def: Any) -> bool:
-        """Instantiate a bean definition. Returns True on success, False if dependencies are not ready."""
+        """Instantiate a bean definition.
+
+        Returns True on success, False if dependencies are not ready.
+        """
         is_class = inspect.isclass(bean_def)
         if is_class:
             spec = inspect.getfullargspec(bean_def.__init__)
