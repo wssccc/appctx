@@ -5,13 +5,13 @@ This package provides a lightweight dependency injection container
 inspired by the Spring Framework for Java.
 """
 
-__version__ = "0.2.2"
+__version__ = "0.3"
 __author__ = "wssccc"
 __email__ = "wssccc@qq.com"
 
 # Import main API for convenience
-from .container import ApplicationContext
-from .decorators import post_construct
+from appctx.container import ApplicationContext
+from appctx.decorators import post_construct
 
 # Create default application context
 _default_context = ApplicationContext()

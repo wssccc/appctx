@@ -1,6 +1,6 @@
 import inspect
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Type, TypeVar, Union, overload
+from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union, overload
 
 T = TypeVar("T")
 
@@ -92,7 +92,7 @@ class ApplicationContext:
 
     def _resolve_dependencies(
         self, spec: inspect.FullArgSpec
-    ) -> Optional[tuple[List[Any], Dict[str, Any]]]:
+    ) -> Optional[Tuple[List[Any], Dict[str, Any]]]:
         """Convert function signature to arguments and keyword arguments.
 
         Resolution strategy:
