@@ -97,7 +97,7 @@ def test_post_construct_with_dependencies():
 
 def test_post_construct_with_global_decorator():
     """Test post_construct with the global bean decorator."""
-    from appctx import post_construct, refresh, get_bean
+    from appctx import get_bean, post_construct, refresh
 
     class GlobalService:
         def __init__(self):
