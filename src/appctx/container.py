@@ -35,8 +35,8 @@ class ApplicationContext:
         """Get all beans of a specific type."""
         return self.bean_types_map[_type]
 
-    def _instantiate(self, bean_def: Any) -> Optional[Any]:
-        """Instantiate a bean definition."""
+    def _instantiate(self, bean_def: Any) -> bool:
+        """Instantiate a bean definition. Returns True on success, False if dependencies are not ready."""
         is_class = inspect.isclass(bean_def)
         if is_class:
             spec = inspect.getfullargspec(bean_def.__init__)
@@ -53,8 +53,8 @@ class ApplicationContext:
             self.bean_names_map[bean_def.__name__] = obj
             self.bean_types_map[type(obj)].append(obj)
 
-            return obj
-        return None
+            return True
+        return False
 
     def _call_post_construct(self, obj: Any) -> None:
         """Call post_construct methods on the object if they exist."""

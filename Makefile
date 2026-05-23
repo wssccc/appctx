@@ -1,4 +1,4 @@
-.PHONY: help install install-dev test lint format clean build publish-test publish bump-patch bump-minor bump-major
+.PHONY: help install install-dev test lint format clean build publish-test publish check-build
 
 help:  ## Show this help message
 	@echo "Available commands:"
@@ -40,15 +40,6 @@ publish-test:  ## Publish to Test PyPI
 
 publish:  ## Publish to PyPI
 	twine upload dist/*
-
-bump-patch:  ## Bump patch version
-	python scripts/bump_version.py patch
-
-bump-minor:  ## Bump minor version
-	python scripts/bump_version.py minor
-
-bump-major:  ## Bump major version
-	python scripts/bump_version.py major
 
 check-build:  ## Check if package builds correctly
 	python -m build
