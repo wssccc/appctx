@@ -17,13 +17,10 @@ test-cov:  ## Run tests with coverage
 	pytest tests/ -v --cov=appctx --cov-report=html --cov-report=term
 
 lint:  ## Run linting checks
-	black --check src/ tests/
-	flake8 src/ tests/
-	mypy src/
+	ruff check src/ tests/
 
 format:  ## Format code
-	black src/ tests/
-	isort src/ tests/
+	ruff format src/ tests/
 
 clean:  ## Clean build artifacts
 	rm -rf build/

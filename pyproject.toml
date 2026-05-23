@@ -24,10 +24,7 @@ classifiers = [
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
-    "black>=22.0",
-    "flake8>=5.0",
-    "mypy>=1.0",
-    "isort>=5.0"
+    "ruff>=0.4.0"
 ]
 
 [project.urls]
@@ -45,9 +42,12 @@ where = ["src"]
 [tool.setuptools.package-data]
 appctx = ["py.typed"]
 
-[tool.black]
+[tool.ruff]
 line-length = 88
-target-version = ['py38']
+target-version = "py38"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
 
 [tool.flake8]
 max-line-length = 88
