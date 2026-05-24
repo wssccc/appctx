@@ -1,199 +1,225 @@
 # API Reference
 
-## Core Decorators
+## Decorators
 
-### `@bean` / `@component`
+Decorators are pure markers — they set attributes on the target but do **not** register anything with a container. Registration happens via `ApplicationContext.scan()` or `add()`.
 
-Register a function or class as a bean in the application context. `@component` is a Spring-style alias for `@bean` — they are identical.
+### `@bean`
+
+Mark a **function** as a bean factory. The container will call this function to produce the bean instance.
 
 ```python
-from appctx import bean, component
+from appctx.decorators import bean
 
-# Function-based bean
+# No-arg form — bean name defaults to function name
 @bean
 def my_service():
     return MyService()
 
-# Class-based bean (Spring-style)
-@component
-class MyComponent:
-    def __init__(self, dependency: SomeDependency):
-        self.dependency = dependency
+# With custom name
+@bean(name="custom_svc")
+def my_service():
+    return MyService()
 ```
 
-When decorating a class, the class itself is registered as a bean factory. The container will instantiate it with resolved dependencies.
+**Behavior:**
+- Sets `_is_bean = True` on the function
+- Sets `_bean_name = name` (or `None` if no name given)
+- Raises `TypeError` if applied to a class — use `@component` for classes
+
+### `@component`
+
+Mark a **class** as a component. The container will instantiate it with resolved dependencies.
+
+```python
+from appctx.decorators import component
+
+# No-arg form — bean name defaults to class name
+@component
+class MyComponent:
+    def __init__(self, dependency: SomeType):
+        self.dependency = dependency
+
+# With custom name
+@component(name="my_comp")
+class MyComponent:
+    pass
+```
+
+**Behavior:**
+- Sets `_is_component = True` on the class
+- Sets `_bean_name = name` (or `None` if no name given)
+- Raises `TypeError` if applied to a function — use `@bean` for functions
 
 ### `@post_construct`
 
-Mark a method to be called automatically after the bean has been constructed and all dependencies have been injected.
+Mark a method to be called after the bean is constructed and all beans are instantiated.
 
 ```python
-from appctx import post_construct
+from appctx.decorators import post_construct
 
 class DatabaseService:
-    def __init__(self):
-        self.connection = None
-
     @post_construct
     def init(self):
         self.connection = create_connection()
-        self.setup_tables()
-
-@bean
-def database_service():
-    return DatabaseService()
 ```
 
-**Important notes:**
+**Notes:**
 - Only non-private methods (not starting with `_`) are considered
-- Multiple methods can be annotated with `@post_construct` in the same class
-- If a `@post_construct` method raises an exception, the bean is removed from the container
-- `@post_construct` methods are called **after all beans are created**, similar to Spring's `@PostConstruct`
-- All beans exist in the container during `@post_construct` execution
-- Order of `@post_construct` calls depends on bean registration order, not dependency relationships
+- Multiple methods can be annotated in the same class
+- If a `@post_construct` method raises, the bean is removed from the container
+- Methods run **after all beans are created**, similar to Spring's `@PostConstruct`
 
-## Container Operations
+## ApplicationContext
 
-### Global Default Context
-
-`from appctx import bean, refresh, get_bean, add` — these all operate on a shared global `ApplicationContext` instance. This is the recommended pattern for most applications.
-
-For isolated contexts (e.g., tests, libraries), create an explicit `ApplicationContext()`:
+The DI container. Create an instance, scan for beans, refresh to instantiate.
 
 ```python
 from appctx import ApplicationContext
 
 ctx = ApplicationContext()
-
-@ctx.bean
-def my_service():
-    return MyService()
-
-ctx.refresh()
+ctx.scan("myapp", exclude=["myapp.tests"]).refresh()
 ```
+
+### `__init__()`
+
+```python
+ctx = ApplicationContext()
+```
+
+Creates a new empty container.
+
+### `scan(package_name=None, exclude=None)`
+
+Scan a package or module for `@bean` / `@component` annotated objects and register them.
+
+**Parameters:**
+- `package_name` (`str`, optional) — Package or module name to scan. If `None`, auto-detects the caller's package.
+- `exclude` (`list[str]`, optional) — Patterns to exclude. Supports fnmatch glob matching and prefix matching (e.g., `"myapp.tests"` excludes `myapp.tests` and all sub-modules).
+
+**Returns:** `self` for method chaining.
+
+```python
+# Scan entire package recursively
+ctx.scan("myapp")
+
+# Scan single module
+ctx.scan("myapp.services")
+
+# Auto-detect caller's package
+ctx.scan()
+
+# With exclude patterns
+ctx.scan("myapp", exclude=["myapp.tests", "myapp.internal_*"])
+
+# Method chaining
+ctx.scan("myapp").refresh()
+```
+
+**Scan behavior:**
+- Recursive: walks all sub-packages and modules in a package
+- Import filtering: only registers objects whose `__module__` matches the scanned module (prevents cross-import duplication)
+- Deduplication: calling `scan()` multiple times won't register the same object twice
+- Auto-detection: uses `inspect.currentframe()` to find the caller's `__package__`
 
 ### `add(target)`
 
-Register a callable or class with the context — equivalent to using the `@bean` decorator on it. Returns the context for chaining.
+Manually register a callable or class with the container. Returns `self` for chaining.
 
 ```python
-from appctx import add
+@bean
+def my_service():
+    return MyService()
 
-def some_service():
-    return SomeService()
-
-# Register without decorator
-add(some_service)
-
-# Also accepts classes
-add(AnotherService)
+ctx.add(my_service)
 ```
 
-> **Note:** AppCtx does not scan packages automatically. When you `import` a module, any `@bean` decorators in that module fire and register with the global context. `add()` is for registering individual callables/classes that weren't decorated.
+This is useful for registering objects that aren't discovered by `scan()`, such as test fixtures or dynamically created beans.
 
 ### `refresh()`
 
-Initialize the container and instantiate all beans. Must be called before getting any beans.
+Initialize the container and instantiate all registered beans in dependency order.
 
 ```python
-from appctx import refresh
-
-refresh()
+ctx.refresh()
 ```
+
+Resolves dependencies iteratively. If any bean definitions can't be instantiated (missing dependencies, circular deps), raises `RuntimeError`. After all beans are created, calls `@post_construct` methods.
 
 ### `get_bean(key)`
 
-Get a bean by type or name.
-
-> ⚠️ **Low-level API.** In normal application code, prefer auto-wiring via constructor/function parameters — just like Spring. Use `get_bean()` only at the application entry point to retrieve the root object, or in rare cases where dynamic bean lookup is unavoidable.
+Retrieve a bean by type or name.
 
 ```python
-from appctx import get_bean
+# By type
+service = ctx.get_bean(MyService)
 
-# Get by type
-service = get_bean(MyService)
-
-# Get by name (function/class name used in @bean)
-service = get_bean("my_service")
+# By name (function/class name, or custom name from @bean(name=...))
+service = ctx.get_bean("my_service")
 ```
 
-Raises `KeyError` if the bean is not found.
+Raises `KeyError` if not found, `RuntimeError` if multiple beans match a type query.
 
 ### `get_beans(type)`
 
-Get all beans of a specific type. Returns a list.
-
-> ⚠️ **Low-level API.** Same guidance as `get_bean()` — prefer auto-wiring. Useful mainly for plugin-style architectures where you need to discover all implementations of an interface.
+Retrieve all beans of a specific type. Returns a list.
 
 ```python
-from appctx import get_beans
-
-services = get_beans(MyService)
-for svc in services:
-    print(svc)
+services = ctx.get_beans(MyService)
 ```
 
 ## Dependency Resolution
 
-AppCtx resolves dependencies based on parameter types and names:
-
 | Parameter Kind | Resolution Strategy |
 |---|---|
 | **Positional arguments** | Resolved by type annotation only |
-| **Keyword-only arguments** (`*`, `arg`) | Resolved by parameter name first, then default value |
+| **Keyword-only arguments** (`*`, `arg`) | Resolved by parameter name, falls back to default |
 | **`**kwargs`** | Receives all remaining beans not used by other parameters |
 
-### Resolution Examples
+### Positional — type annotation resolution
+
+```python
+@component
+class UserService:
+    def __init__(self, db_config: DbConfig):  # Resolved by DbConfig type
+        self.db_config = db_config
+```
+
+### Keyword-only — name resolution
 
 ```python
 @bean
-def config_service():
-    return "config_value"
-
-@bean
-def database_service():
-    return "database_url"
-
-# Positional args — resolved by type annotations
-@bean
-def service_with_positional(config_service: str):
-    return f"Service: {config_service}"
-
-# Keyword-only args — resolved by name
-@bean
-def service_with_keyword_only(*, config_service, timeout=30):
-    return f"Service: {config_service}, timeout={timeout}"
-
-# **kwargs — gets all remaining beans
-@bean
-def flexible_service(**kwargs):
-    return f"Flexible: {kwargs}"
+def service(*, db_config, timeout=30):  # db_config resolved by name
+    return f"Service: {db_config}, timeout={timeout}"
 ```
 
-### Circular Dependency Detection
-
-Circular dependencies are detected and reported as `RuntimeError` during `refresh()`.
-
-## Multiple Beans of Same Type
-
-Multiple beans of the same type are supported. Use `get_beans()` to retrieve all of them:
+### **kwargs — all remaining beans
 
 ```python
 @bean
-def primary_db():
-    return DatabaseService("primary://db")
-
-@bean
-def secondary_db():
-    return DatabaseService("secondary://db")
-
-refresh()
-
-# Get all database services
-dbs = get_beans(DatabaseService)  # Returns list of both
+def flexible_service(**kwargs):  # Gets all registered beans
+    return kwargs
 ```
 
-> **Note:** When using `get_bean(Type)` with multiple beans of the same type, a `RuntimeError` is raised due to ambiguity. Use `get_beans(Type)` or `get_bean("name")` instead.
+## Custom Bean Names
+
+Both `@bean` and `@component` support a `name` parameter to override the default bean name:
+
+```python
+@bean(name="my_config")
+def application_config():
+    return {"key": "value"}
+
+@component(name="primary_db")
+class Database:
+    pass
+
+# Access by custom name
+ctx.get_bean("my_config")
+ctx.get_bean("primary_db")
+```
+
+When a custom name is set, the original function/class name is **not** registered — only the custom name works for `get_bean("name")` lookups.
 
 ## Error Handling
 
@@ -201,16 +227,6 @@ dbs = get_beans(DatabaseService)  # Returns list of both
 |---|---|
 | `KeyError` | Requested bean not found in container |
 | `RuntimeError` | Bean instantiation failure (including circular dependencies) |
-| `RuntimeError` | Ambiguous type match — multiple beans of the same type via `get_bean(Type)` |
-
-```python
-try:
-    service = get_bean(UnknownService)
-except KeyError as e:
-    print(f"Bean not found: {e}")
-
-try:
-    refresh()
-except RuntimeError as e:
-    print(f"Instantiation failed: {e}")
-```
+| `RuntimeError` | Ambiguous type match — multiple beans of same type via `get_bean(Type)` |
+| `TypeError` | `@bean` on a class or `@component` on a function |
+| `ValueError` | `scan()` auto-detection from `__main__` or unknown caller |

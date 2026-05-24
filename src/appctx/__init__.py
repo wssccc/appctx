@@ -5,32 +5,16 @@ This package provides a lightweight dependency injection container
 inspired by the Spring Framework for Java.
 """
 
-__version__ = "0.3"
+__version__ = "0.5"
 __author__ = "wssccc"
 __email__ = "wssccc@qq.com"
 
-# Import main API for convenience
 from appctx.container import ApplicationContext
-from appctx.decorators import post_construct
-
-# Create default application context
-_default_context = ApplicationContext()
-
-# Export main API functions
-bean = _default_context.bean
-component = _default_context.bean
-add = _default_context.add
-get_bean = _default_context.get_bean
-get_beans = _default_context.get_beans
-refresh = _default_context.refresh
+from appctx.decorators import bean, component, post_construct
 
 __all__ = [
     "ApplicationContext",
     "bean",
     "component",
-    "add",
-    "get_bean",
-    "get_beans",
-    "refresh",
     "post_construct",
 ]

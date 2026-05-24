@@ -2,28 +2,28 @@
 
 ## Project Overview
 
-AppCtx is a lightweight dependency injection container for Python inspired by the Spring Framework. It provides decorator-based bean registration and auto-wiring capabilities using type annotations.
+AppCtx is a lightweight dependency injection container for Python inspired by the Spring Framework. It uses pure marker decorators (`@bean` for functions, `@component` for classes) that are decoupled from the container. Bean discovery is done via `ApplicationContext.scan()` which recursively scans Python packages.
 
 ## Core Architecture
 
 ### Key Components
 
-- **ApplicationContext** (`src/appctx/container.py`): Main DI container that manages bean lifecycle
-- **Decorators** (`src/appctx/decorators.py`): `@post_construct` decorator for lifecycle hooks
-- **Bean Registration**: Uses `@bean` / `@component` decorator to register functions/classes as beans
+- **ApplicationContext** (`src/appctx/container.py`): Main DI container with `scan()`, `add()`, `refresh()`, `get_bean()`, `get_beans()` methods
+- **Decorators** (`src/appctx/decorators.py`): Pure marker decorators: `@bean` (functions), `@component` (classes), `@post_construct` (lifecycle hooks)
+- **Bean Discovery**: `scan(package_name, exclude)` recursively scans packages, `__module__` filtering prevents cross-import duplication
 - **Dependency Resolution**: Auto-wires dependencies based on type annotations or parameter names
-- **Default Context**: Global context instance exposed through `__init__.py` for convenience
 
 ### Public API (from `__init__.py`)
 
-`bean`, `component`, `add`, `get_bean`, `get_beans`, `refresh`, `post_construct`, `ApplicationContext`
+`ApplicationContext`, `bean`, `component`, `post_construct`
 
 ### Data Flow
 
-1. Bean definitions are registered using `@bean` / `@component` decorator
-2. `refresh()` initializes container and instantiates beans in dependency order
-3. Dependencies are resolved through type annotations (primary) or parameter names (fallback)
-4. Beans are stored in `bean_names_map` (by name) and `bean_types_map` (by type)
+1. `@bean` / `@component` decorators set marker attributes (`_is_bean`, `_is_component`, `_bean_name`) on objects
+2. `scan()` discovers marked objects in packages and adds them to `bean_defs`
+3. `refresh()` initializes container and instantiates beans in dependency order
+4. Dependencies are resolved through type annotations (primary) or parameter names (fallback)
+5. Beans are stored in `bean_names_map` (by name) and `bean_types_map` (by type)
 
 ## Development Workflow
 
@@ -65,16 +65,31 @@ make format && make lint && make test
 
 ### Bean Registration
 ```python
-# Function-based bean
+from appctx import ApplicationContext
+from appctx.decorators import bean, component
+
+# Function-based bean factory
 @bean
 def service():
     return Service("config")
 
-# Class-based bean (Spring-style)
+# Custom bean name
+@bean(name="my_service")
+def service():
+    return Service("config")
+
+# Class-based component (Spring-style)
 @component
 class Component:
     def __init__(self, dependency: Service):
         self.dependency = dependency
+
+# Scan and refresh
+ctx = ApplicationContext()
+ctx.scan("myapp").refresh()
+
+# Or manually add
+ctx.add(service).refresh()
 ```
 
 ### Post-Construct Hook
@@ -114,7 +129,12 @@ class DatabaseService:
 
 ## Critical Implementation Details
 
+- `@bean` only accepts functions (raises TypeError on classes); `@component` only accepts classes (raises TypeError on functions)
+- `@bean`/`@component` support optional `name` parameter for custom bean names via `_bean_name` attribute
+- `scan()` uses `pkgutil.walk_packages` for recursive package scanning with `fnmatch` glob exclude support
+- `_scan_module` filters by `obj.__module__ == module.__name__` to prevent cross-import duplicate registration
 - Bean instantiation uses iterative resolution (not recursive) to handle complex dependency graphs
+- `_instantiate` uses `getattr(bean_def, '_bean_name', None) or bean_def.__name__` for bean name resolution
 - Simple type checking used for type-based bean retrieval (replaced singledispatchmethod for broader Python compatibility)
 - `defaultdict` for type-based bean storage to support multiple beans per type
 - Post-construction lifecycle hooks available via `@post_construct` decorator (called after all beans are created)
