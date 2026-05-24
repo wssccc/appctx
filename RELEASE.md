@@ -12,21 +12,11 @@ This document describes how to release a new version of appctx to PyPI.
 
 ### 1. Update Version
 
-Use the version bump script to update the version in `pyproject.toml`:
+Manually edit the version in both `pyproject.toml` and `src/appctx/__init__.py`:
 
-```bash
-# For patch release (0.1.0 -> 0.1.1)
-python scripts/bump_version.py patch
-
-# For minor release (0.1.0 -> 0.2.0)
-python scripts/bump_version.py minor
-
-# For major release (0.1.0 -> 1.0.0)
-python scripts/bump_version.py major
-
-# For specific version
-python scripts/bump_version.py 1.2.3
-```
+- Update `version` field in `pyproject.toml`
+- Update `__version__` in `src/appctx/__init__.py`
+- Add a new entry in `CHANGELOG.md`
 
 ### 2. Commit and Push Changes
 

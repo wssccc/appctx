@@ -2,7 +2,8 @@
 
 import pytest
 
-from appctx import ApplicationContext, bean, post_construct
+from appctx.container import ApplicationContext
+from appctx.decorators import bean, component, post_construct
 
 
 class ServiceWithPostConstruct:
@@ -35,10 +36,11 @@ def test_post_construct_decorator():
     """Test that post_construct methods are called after bean creation."""
     ctx = ApplicationContext()
 
-    @ctx.bean
+    @bean
     def service():
         return ServiceWithPostConstruct("test")
 
+    ctx.add(service)
     ctx.refresh()
 
     service_instance = ctx.get_bean("service")
@@ -50,10 +52,11 @@ def test_multiple_post_construct_methods():
     """Test that multiple post_construct methods are all called."""
     ctx = ApplicationContext()
 
-    @ctx.bean
+    @bean
     def service():
         return ServiceWithMultiplePostConstruct()
 
+    ctx.add(service)
     ctx.refresh()
 
     service_instance = ctx.get_bean("service")
@@ -79,14 +82,15 @@ def test_post_construct_with_dependencies():
 
     ctx = ApplicationContext()
 
-    @ctx.bean
+    @bean
     def config_service():
         return ConfigService()
 
-    @ctx.bean
+    @bean
     def client_service(config: ConfigService):
         return ClientService(config)
 
+    ctx.add(config_service).add(client_service)
     ctx.refresh()
 
     client = ctx.get_bean(ClientService)
@@ -95,11 +99,11 @@ def test_post_construct_with_dependencies():
     assert client.config.config["key"] == "value"
 
 
-def test_post_construct_with_global_decorator():
-    """Test post_construct with the global bean decorator."""
-    from appctx import get_bean, post_construct, refresh
+def test_post_construct_on_component():
+    """Test post_construct on a @component class."""
 
-    class GlobalService:
+    @component
+    class ServiceWithInit:
         def __init__(self):
             self.initialized = False
 
@@ -107,19 +111,16 @@ def test_post_construct_with_global_decorator():
         def initialize(self):
             self.initialized = True
 
-    @bean
-    def global_service():
-        return GlobalService()
+    ctx = ApplicationContext()
+    ctx.add(ServiceWithInit)
+    ctx.refresh()
 
-    refresh()
-
-    service = get_bean(GlobalService)
+    service = ctx.get_bean(ServiceWithInit)
     assert service.initialized is True
 
 
 def test_post_construct_failure_prevents_registration():
     """Test that a failed post_construct prevents bean registration."""
-    from appctx import ApplicationContext
 
     class FailingService:
         def __init__(self):
@@ -132,9 +133,11 @@ def test_post_construct_failure_prevents_registration():
 
     ctx = ApplicationContext()
 
-    @ctx.bean
+    @bean
     def failing_service():
         return FailingService()
+
+    ctx.add(failing_service)
 
     # Refresh should fail
     with pytest.raises(ValueError, match="Initialization failed!"):
@@ -166,13 +169,15 @@ def test_post_construct_failure_with_dependencies():
 
     ctx = ApplicationContext()
 
-    @ctx.bean
+    @bean
     def healthy_service():
         return HealthyService()
 
-    @ctx.bean
+    @bean
     def failing_service():
         return FailingService()
+
+    ctx.add(healthy_service).add(failing_service)
 
     # Refresh should fail due to failing_service
     with pytest.raises(RuntimeError, match="Failed to init"):
@@ -199,9 +204,11 @@ def test_post_construct_multiple_methods_one_fails():
 
     ctx = ApplicationContext()
 
-    @ctx.bean
+    @bean
     def multi_init_service():
         return MultiInitService()
+
+    ctx.add(multi_init_service)
 
     # Refresh should fail
     with pytest.raises(ValueError, match="Second init failed!"):

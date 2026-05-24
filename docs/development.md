@@ -72,7 +72,6 @@ src/appctx/          # Main package code
     decorators.py    # @bean and @post_construct decorators
 tests/               # Test suite
 docs/                # Documentation
-scripts/             # Build utilities
 ```
 
 ## Contributing

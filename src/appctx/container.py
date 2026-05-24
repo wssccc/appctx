@@ -1,4 +1,7 @@
+import fnmatch
+import importlib
 import inspect
+import pkgutil
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union, overload
 
@@ -35,6 +38,97 @@ class ApplicationContext:
         """Get all beans of a specific type."""
         return self.bean_types_map[_type]
 
+    def scan(
+        self,
+        package_name: Optional[str] = None,
+        exclude: Optional[List[str]] = None,
+    ) -> "ApplicationContext":
+        """Scan a package for annotated beans and components.
+
+        Recursively imports modules within the specified package and
+        registers any objects marked with @bean or @component.
+
+        Args:
+            package_name: Package or module name to scan. If None,
+                auto-detects the caller's package.
+            exclude: List of module/package name patterns to exclude.
+                Supports fnmatch glob patterns (e.g., "my_pkg.test_*").
+
+        Returns:
+            self for method chaining (e.g., ctx.scan("pkg").refresh()).
+
+        Raises:
+            ValueError: If package_name cannot be determined for auto-scanning.
+        """
+        if package_name is None:
+            caller_frame = inspect.currentframe()
+            if caller_frame is None:
+                raise ValueError(
+                    "Cannot determine caller's frame for auto-scanning. "
+                    "Please specify a package name explicitly."
+                )
+            caller_frame = caller_frame.f_back
+            caller_module = inspect.getmodule(caller_frame)
+            if caller_module is None:
+                raise ValueError("Cannot determine caller's module for auto-scanning")
+            package_name = caller_module.__package__
+            if package_name is None:
+                if caller_module.__name__ == "__main__":
+                    raise ValueError(
+                        "Auto-scanning from __main__ is not supported. "
+                        "Please specify a package name explicitly."
+                    )
+                package_name = caller_module.__name__
+
+        module = importlib.import_module(package_name)
+
+        # Scan the root module/package itself
+        if exclude and self._should_exclude(module.__name__, exclude):
+            return self
+        self._scan_module(module)
+
+        # If it's a package, recursively scan sub-modules
+        if hasattr(module, "__path__"):
+            for _importer, modname, _ispkg in pkgutil.walk_packages(
+                module.__path__, module.__name__ + "."
+            ):
+                if exclude and self._should_exclude(modname, exclude):
+                    continue
+                sub_module = importlib.import_module(modname)
+                self._scan_module(sub_module)
+
+        return self
+
+    def _should_exclude(self, module_name: str, exclude: List[str]) -> bool:
+        """Check if a module name matches any exclude pattern.
+
+        Supports fnmatch glob patterns and prefix matching for packages.
+        """
+        for pattern in exclude:
+            if fnmatch.fnmatch(module_name, pattern):
+                return True
+            # Prefix match: exclude entire package tree
+            if module_name.startswith(pattern + "."):
+                return True
+        return False
+
+    def _scan_module(self, module: Any) -> None:
+        """Scan a module for annotated beans and components.
+
+        Only registers objects defined in this module (not imported
+        from elsewhere) to avoid duplicate registration.
+        """
+        for name in dir(module):
+            if name.startswith("_"):
+                continue
+            obj = getattr(module, name)
+            # Only register objects defined in this module
+            if hasattr(obj, "__module__") and obj.__module__ != module.__name__:
+                continue
+            if hasattr(obj, "_is_bean") or hasattr(obj, "_is_component"):
+                if obj not in self.bean_defs:
+                    self.bean_defs.append(obj)
+
     def _instantiate(self, bean_def: Any) -> bool:
         """Instantiate a bean definition.
 
@@ -52,8 +146,9 @@ class ApplicationContext:
             args, kwargs = deps
             obj = bean_def(*args, **kwargs)
 
-            # Register bean by name for both function and class beans
-            self.bean_names_map[bean_def.__name__] = obj
+            # Use custom bean name if specified, otherwise use __name__
+            bean_name = getattr(bean_def, "_bean_name", None) or bean_def.__name__
+            self.bean_names_map[bean_name] = obj
             self.bean_types_map[type(obj)].append(obj)
 
             return True
@@ -123,15 +218,15 @@ class ApplicationContext:
 
             args.append(typed_beans[0])
 
-        # Resolve keyword-only arguments by name
+        # Resolve keyword-only arguments by name first, then fall back to defaults
         if spec.kwonlyargs:
             for arg_name in spec.kwonlyargs:
-                # Check for default value first
-                if spec.kwonlydefaults and arg_name in spec.kwonlydefaults:
-                    kwargs[arg_name] = spec.kwonlydefaults[arg_name]
-                # Then try to resolve by bean name
-                elif arg_name in self.bean_names_map:
+                # Try to resolve by bean name first
+                if arg_name in self.bean_names_map:
                     kwargs[arg_name] = self.bean_names_map[arg_name]
+                # Fall back to default value
+                elif spec.kwonlydefaults and arg_name in spec.kwonlydefaults:
+                    kwargs[arg_name] = spec.kwonlydefaults[arg_name]
                 else:
                     # Cannot resolve this keyword-only argument
                     return None
@@ -148,13 +243,8 @@ class ApplicationContext:
 
         return args, kwargs
 
-    def bean(self, target: T) -> T:
-        """Decorator to register a bean."""
-        self.bean_defs.append(target)
-        return target
-
     def add(self, target: Any) -> "ApplicationContext":
-        """Add a bean definition."""
+        """Add a bean definition manually."""
         if inspect.ismodule(target):
             return self
         self.bean_defs.append(target)
