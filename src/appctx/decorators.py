@@ -1,5 +1,7 @@
 import inspect
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional, TypeVar, Union
+
+_F = TypeVar("_F", bound=Callable[..., Any])
 
 
 def bean(
@@ -33,8 +35,8 @@ def bean(
                 f"@bean can only be used on functions, not classes. "
                 f"Use @component for class '{func.__name__}'."
             )
-        func._is_bean = True  # type: ignore[attr-defined]
-        func._bean_name = name  # type: ignore[attr-defined]
+        setattr(func, "_is_bean", True)
+        setattr(func, "_bean_name", name)
         return func
 
     if _target is not None:
@@ -73,8 +75,8 @@ def component(
             raise TypeError(
                 f"@component can only be used on classes, got {type(cls).__name__}"
             )
-        cls._is_component = True  # type: ignore[attr-defined]
-        cls._bean_name = name  # type: ignore[attr-defined]
+        setattr(cls, "_is_component", True)
+        setattr(cls, "_bean_name", name)
         return cls
 
     if _target is not None:
@@ -85,12 +87,13 @@ def component(
         return decorator
 
 
-def post_construct(func: Callable[[Any], None]) -> Callable[[Any], None]:
+def post_construct(func: _F) -> _F:
     """
     Decorator to mark a method to be called after the bean has been
     constructed.
 
     The method should only accept self as a parameter and should not return any value.
+    Async methods are supported via ``ApplicationContext.refresh_async()``.
 
     Args:
         func: The method to mark
@@ -98,5 +101,5 @@ def post_construct(func: Callable[[Any], None]) -> Callable[[Any], None]:
     Returns:
         The original method with _is_post_construct attribute set.
     """
-    func._is_post_construct = True  # type: ignore[attr-defined]
+    setattr(func, "_is_post_construct", True)
     return func

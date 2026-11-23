@@ -217,3 +217,31 @@ def test_post_construct_multiple_methods_one_fails():
     # Bean should not be registered even though first init succeeded
     with pytest.raises(KeyError):
         ctx.get_bean("multi_init_service")
+
+
+def test_post_construct_failure_removes_all_type_keys():
+    """A failed bean is removed from every registered type key."""
+
+    class Base:
+        pass
+
+    class FailingImpl(Base):
+        def __init__(self):
+            pass
+
+        @post_construct
+        def init(self):
+            raise ValueError("sync init failed")
+
+    @bean
+    def failing_impl() -> Base:
+        return FailingImpl()
+
+    ctx = ApplicationContext()
+    ctx.add(failing_impl)
+
+    with pytest.raises(ValueError, match="sync init failed"):
+        ctx.refresh()
+
+    assert ctx.bean_types_map.get(Base) is None
+    assert ctx.bean_types_map.get(FailingImpl) is None

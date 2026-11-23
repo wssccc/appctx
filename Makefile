@@ -1,4 +1,4 @@
-.PHONY: help install install-dev test lint format clean build publish-test publish check-build
+.PHONY: help install install-dev test test-cov lint format typecheck clean build publish-test publish check-build
 
 help:  ## Show this help message
 	@echo "Available commands:"
@@ -7,8 +7,8 @@ help:  ## Show this help message
 install:  ## Install package
 	pip install -e .
 
-install-dev:  ## Install package with development dependencies
-	pip install -e .[dev]
+install-dev:  ## Install package with development dependencies (dev + typecheck)
+	pip install -e ".[dev,typecheck]"
 
 test:  ## Run tests
 	pytest tests/ -v
@@ -16,11 +16,15 @@ test:  ## Run tests
 test-cov:  ## Run tests with coverage
 	pytest tests/ -v --cov=appctx --cov-report=html --cov-report=term
 
-lint:  ## Run linting checks
+lint:  ## Run linting checks (ruff check + ruff format --check)
 	ruff check src/ tests/
+	ruff format --check src/ tests/
 
 format:  ## Format code
 	ruff format src/ tests/
+
+typecheck:  ## Run type checking (pip install -e .[typecheck])
+	mypy src/
 
 clean:  ## Clean build artifacts
 	rm -rf build/
