@@ -2,76 +2,77 @@
 
 ## Requirements
 
-- Python 3.8 or higher
+- Python 3.9 or higher
 - pip
+- make (optional; the `Makefile` wraps the commands below)
 
 ## Development Setup
 
 ```bash
 git clone https://github.com/wssccc/appctx.git
 cd appctx
-pip install -e .[dev]
+pip install -e ".[dev,typecheck]"
 ```
 
 This installs the following development tools:
 - `pytest>=7.0` — Testing framework
 - `pytest-cov>=4.0` — Coverage reporting
-- `black>=22.0` — Code formatting
-- `flake8>=5.0` — Linting
-- `mypy>=1.0` — Type checking
-- `isort>=5.0` — Import sorting
+- `ruff>=0.4.0` — Formatting and linting (the project uses ruff, not black/isort/flake8)
+- `mypy>=1.0,<2.0` — Type checking (pinned below 2.0 while Python 3.9 is supported)
+
+`requirements-dev.txt` lists the same packages if you prefer `pip install -r requirements-dev.txt`.
 
 ## Running Tests
 
 ```bash
 # Run all tests
-pytest tests/
+make test            # or: pytest tests/ -q
 
 # Run with coverage
-pytest --cov=src/appctx tests/
+make test-cov
 ```
 
 ## Code Quality
 
 ```bash
 # Format code (line length: 88)
-black src/ tests/
+make format          # ruff format src/ tests/
 
-# Sort imports (Black profile)
-isort src/ tests/
-
-# Lint
-flake8 src/ tests/
+# Lint (ruff check + ruff format --check)
+make lint
 
 # Type check
-mypy src/
+make typecheck       # mypy src/
 ```
 
 ### Run All Quality Checks
 
 ```bash
-make format && make lint && make test
+make format && make lint && make typecheck && make test
 ```
 
 Or manually:
 
 ```bash
-black src/ tests/
-isort src/ tests/
-flake8 src/ tests/
+ruff format src/ tests/
+ruff check src/ tests/
+ruff format --check src/ tests/
 mypy src/
-pytest --cov=src/appctx tests/
+pytest tests/ -q
 ```
+
+The minimum supported interpreter is Python 3.9: avoid syntax or APIs that require a newer version, and keep the ruff and mypy targets at `py39`.
 
 ## Project Structure
 
 ```
 src/appctx/          # Main package code
-    __init__.py      # Public API exports, default context
-    container.py     # ApplicationContext implementation
-    decorators.py    # @bean and @post_construct decorators
-tests/               # Test suite
-docs/                # Documentation
+    __init__.py      # Public API exports and __version__
+    container.py     # ApplicationContext and BeanResolutionError
+    decorators.py    # @bean, @component and @post_construct decorators
+    py.typed
+tests/               # Test suite and fixtures
+docs/                # API reference and development guide
 ```
 
 ## Contributing
@@ -86,9 +87,9 @@ We welcome contributions!
 
 ### Before Submitting
 
-- Ensure all tests pass: `pytest`
-- Ensure code is formatted: `black --check src/ tests/`
-- Ensure linting passes: `flake8 src/ tests/`
+- Ensure all tests pass: `pytest tests/ -q`
+- Ensure code is formatted: `ruff format --check src/ tests/`
+- Ensure linting passes: `ruff check src/ tests/`
 - Ensure type checking passes: `mypy src/`
 
 ## Release Process

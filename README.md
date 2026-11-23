@@ -2,7 +2,7 @@
 
 Spring-style dependency injection for Python
 
-[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://python.org)
+[![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/wssccc/appctx/blob/main/LICENSE)
 [![PyPI Version](https://img.shields.io/pypi/v/appctx.svg)](https://pypi.org/project/appctx/)
 
@@ -10,14 +10,17 @@ Spring-style dependency injection for Python
 
 AppCtx is a lightweight dependency injection (DI) container for Python, inspired by the Spring Framework. It uses decorator-based bean registration with package scanning and auto-wiring via type annotations to manage dependencies in a clean, testable way.
 
-**Python Requirements**: 3.8+ | **License**: MIT
+**Python Requirements**: 3.9+ | **License**: MIT
 
 ### Features
 
 - 🏷️ **Pure marker decorators** — `@bean` for functions, `@component` for classes — no coupling to container instances
-- 🔍 **Package scanning** — `ApplicationContext.scan()` auto-discovers annotated objects
-- 🔄 **Auto-wiring** — Dependencies resolved from type annotations automatically
+- 🔍 **Package scanning** — `ApplicationContext.scan()` auto-discovers annotated objects, with include/exclude filtering
+- 🔄 **Auto-wiring** — Dependencies resolved from type annotations, including `from __future__ import annotations` (PEP 563)
+- 🧩 **Interface-first injection** — Depend on an ABC or runtime-checkable Protocol; the container finds a unique implementation
 - 🔗 **Circular dependency detection** — Caught at startup, not runtime
+- ⚡ **Async lifecycle** — `@post_construct` can be async; use `await ctx.refresh_async()`
+- 🧭 **Actionable errors** — `BeanResolutionError` reports the missing type or ambiguous candidates per bean
 - 📦 **Lightweight** — Zero mandatory dependencies beyond stdlib
 - 🐍 **Pythonic API** — Feels natural in Python, not a Java port
 - 🏗️ **Multiple contexts** — Isolated containers for different scopes
@@ -83,6 +86,8 @@ print(user_svc.get_user(123))
 
 > **Note:** `get_bean()` is only needed at the **entry point** to bootstrap your application. All other dependencies are injected automatically via constructor or function parameters — just like Spring.
 
+> **PEP 563:** AppCtx works with `from __future__ import annotations`; stringized annotations are resolved when the container refreshes.
+
 ### Post-construct lifecycle
 
 Use `@post_construct` to run initialization logic after all beans are created:
@@ -100,6 +105,21 @@ class DatabaseService:
         self.connection = create_connection()  # Called after all beans are created
 ```
 
+Async hooks are supported through the async refresh API:
+
+```python
+@component
+class AsyncDatabaseService:
+    def __init__(self):
+        self.connection = None
+
+    @post_construct
+    async def init(self):
+        self.connection = await create_connection()
+```
+
+Call `await ctx.refresh_async()` from an async application. `ctx.refresh()` only runs synchronous hooks and raises a clear `RuntimeError` if async hooks are present.
+
 ## Core Concepts
 
 | Concept | Description |
@@ -109,14 +129,18 @@ class DatabaseService:
 | **`@bean`** | Pure marker decorator for functions (bean factories) |
 | **`@component`** | Pure marker decorator for classes (components) |
 | **`scan()`** | Discovers `@bean`/`@component` annotated objects in packages |
-| **`refresh()`** | Instantiates all beans in dependency order |
-| **`add()`** | Manually register an object without annotation |
+| **`refresh()`** | Instantiates all beans and runs synchronous lifecycle hooks |
+| **`refresh_async()`** | Async variant that also runs async `@post_construct` hooks |
+| **`add()`** | Manually register a class or function bean definition |
 
 ### Dependency Resolution Rules
 
-1. **Positional arguments** → resolved by type annotation
+1. **Positional arguments** → resolved by exact type first, then by a unique assignable type (ABC or runtime-checkable Protocol)
 2. **Keyword-only arguments** (`*, name`) → resolved by parameter name, falls back to default
 3. **`**kwargs`** → receives all remaining beans not consumed by other parameters
+4. **Ambiguity** → multiple candidates or a missing dependency raise `BeanResolutionError` with the argument and candidate details at `refresh()`
+
+> PEP 563 string annotations are supported. `object` is not used for assignability matching, so a dependency on `object` only matches an explicitly registered `object` bean.
 
 ## Scanning
 
@@ -157,6 +181,17 @@ ctx = ApplicationContext()
 ctx.scan("myapp", exclude=["myapp.tests", "myapp.internal_*"]).refresh()
 ```
 
+### Include patterns
+
+Restrict scanning to selected packages or modules:
+
+```python
+ctx = ApplicationContext()
+ctx.scan("myapp", include=["myapp.services", "myapp.config"]).refresh()
+```
+
+`include` supports the same fnmatch glob and package-prefix matching as `exclude`. When both are provided, a module must match `include` and must not match `exclude`.
+
 ## Decorators
 
 ### `@bean` — Function bean factories
@@ -175,6 +210,7 @@ def another_service():
 
 - Only accepts **functions** — raises `TypeError` on classes
 - Sets `_is_bean = True` and `_bean_name` attributes
+- The declared return type (when it is a class) is registered in addition to the concrete return type; useful for factories declared to return an ABC/Protocol. The produced object must be an instance of the declared type, otherwise `refresh()` raises `TypeError`
 - Use `@component` for classes
 
 ### `@component` — Class components
@@ -194,6 +230,7 @@ class AnotherComponent:
 
 - Only accepts **classes** — raises `TypeError` on functions
 - Sets `_is_component = True` and `_bean_name` attributes
+- A class without a custom `__init__` is constructed with no arguments; explicit `**kwargs` still receives the remaining beans
 - Use `@bean` for functions
 
 ### `@post_construct` — Lifecycle hooks
@@ -233,13 +270,15 @@ ctx = ApplicationContext()
 ctx.scan("myapp").refresh()
 ```
 
-You can also manually register objects with `add()`:
+You can also manually register bean definitions with `add()`:
 
 ```python
 ctx = ApplicationContext()
 ctx.add(my_factory_func).add(MyComponentClass)
 ctx.refresh()
 ```
+
+`add()` accepts classes and functions only. Modules are ignored; pre-built instances raise `TypeError` — wrap them in a `@bean` factory instead.
 
 ## Best Practices
 
@@ -250,6 +289,13 @@ ctx.refresh()
 5. **Use `@post_construct` for initialization** — Not `__init__` side-effects.
 6. **Separate configuration from logic** — Use dedicated config beans.
 7. **Design for testability** — Beans that accept dependencies via constructor are trivially mockable.
+
+## Error Handling
+
+- `BeanResolutionError` (subclass of `RuntimeError`) — one or more bean definitions could not be instantiated; the message lists each bean with its reason (missing type, ambiguous candidates, or an annotation that cannot be evaluated) and flags likely circular dependencies.
+- `KeyError` — `get_bean` could not find a bean.
+- `RuntimeError` — `get_bean(Type)` matched multiple beans, or `refresh()` found an async `@post_construct` hook.
+- `TypeError` — `add()` received a pre-built instance, or a `@bean` factory returned an object that is not an instance of its declared return type.
 
 ## Documentation
 
